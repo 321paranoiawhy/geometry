@@ -1,5 +1,5 @@
 import { pwa } from './config/pwa'
-import { appDescription } from './constants/index'
+import { appDescription } from './constants'
 
 export default defineNuxtConfig({
   modules: [
@@ -8,7 +8,9 @@ export default defineNuxtConfig({
     '@pinia/nuxt',
     '@nuxtjs/color-mode',
     '@vite-pwa/nuxt',
+    // '@nuxt/ui',
     '@nuxt/eslint',
+    '@element-plus/nuxt',
   ],
 
   experimental: {
@@ -54,6 +56,15 @@ export default defineNuxtConfig({
         { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
         { name: 'theme-color', media: '(prefers-color-scheme: light)', content: 'white' },
         { name: 'theme-color', media: '(prefers-color-scheme: dark)', content: '#222222' },
+      ],
+      script: [
+        // 使用 CDN
+        // { src: 'https://cdn.bootcdn.net/ajax/libs/gif.js/0.2.0/gif.js' },
+        // { src: 'https://cdn.bootcdn.net/ajax/libs/gif.js/0.2.0/gif.worker.js' },
+        // { src: '/utils/gifjs/gif.js' },
+        // { src: '/utils/gifjs/gif.worker.js' },
+        // { src: '/gif.js' },
+        // { src: '/gif.worker.js' },
       ],
     },
   },

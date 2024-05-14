@@ -54,6 +54,6 @@ jobs:
         uses: peaceiris/actions-gh-pages@v3
         with:
           # This token is automatically invoked
-          github_token: ${{ secrets.ACCESS_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           # Nuxt export the statically generated files in the dist directory by default
           publish_dir: ./dist

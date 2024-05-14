@@ -1,4 +1,29 @@
 <script setup lang="ts">
+// import rawGif from '@/utils/gifjs/gif?raw'
+// import rawGifWorker from '@/utils/gifjs/gif.worker?raw'
+import canvas2svg from '@/utils/canvas2svg?raw'
+
+const props = withDefaults(defineProps<Partial<TProps>>(), {
+  minCanvasSize: 500,
+  sideCounts: 50,
+  sideWidth: 1,
+  sideColor: 'black',
+  minSideLength: 100,
+  diagonalWidth: 1,
+  diagonalColor: 'black',
+  onlyVertex: true,
+  animation: false,
+  lazy: true,
+})
+
+useHead({
+  script: [
+    //   { innerHTML: rawGif },
+    // { innerHTML: rawGifWorker },
+    { innerHTML: canvas2svg },
+  ],
+})
+
 interface TProps {
   minCanvasSize: number
   /**
@@ -34,6 +59,13 @@ interface TProps {
    * 动画步骤
    * 1. 绘制正多边形
    * 2. 顶点互连 (不重复绘制)
+   * https://github.com/tweenjs/tween.js
+   * https://pixijs.com/
+   * https://konvajs.org/index.html
+   * https://echarts.apache.org/en/index.html
+   * https://antv.antgroup.com/
+   * https://d3js.org/
+   * https://threejs.org/
    */
   animation: boolean
   /**
@@ -49,19 +81,6 @@ interface TProps {
    */
   lazy: boolean
 }
-
-const props = withDefaults(defineProps<Partial<TProps>>(), {
-  minCanvasSize: 500,
-  sideCounts: 10,
-  sideWidth: 1,
-  sideColor: 'red',
-  minSideLength: 100,
-  diagonalWidth: 1,
-  diagonalColor: 'blue',
-  onlyVertex: true,
-  animation: false,
-  lazy: true,
-})
 
 /**
  * 校核 props
@@ -85,29 +104,43 @@ const canvasSize = computed(() => {
   return (d > props.minCanvasSize ? d : props.minCanvasSize)
 })
 
+type TPoint = Record<'x' | 'y', number>
+
 /**
  * 各顶点坐标
  */
 const points = computed(() => {
-  const result: Record<'x' | 'y', number>[] = []
+  const result: TPoint[] = []
 
   const r = D.value / 2
+  // 相邻两对角线夹角
   const deltaTheta = 2 * Math.PI / props.sideCounts
   for (let i = 0; i < props.sideCounts; i++) {
     const theta = i * deltaTheta
     // 向右为 x 轴正方向
     // 向下为 y 轴正方向
-    result[i] = { x: r * Math.sin(theta), y: -r * Math.cos(theta) }
+    // server 和 client 计算结果可能不一致, 这里暂时保留三位小数
+    // result[i] = { x: r * Math.sin(theta), y: -r * Math.cos(theta) }
+    result[i] = { x: +(r * Math.sin(theta)).toFixed(3), y: -(r * Math.cos(theta)).toFixed(3) }
   }
 
   return result
 })
 
 const canvas = ref<HTMLCanvasElement>()
+// console.log(GIF)
+// const gif = new GIF({
+//   workers: 2,
+//   quality: 5,
+//   debug: true,
+//   width: canvasSize.value,
+//   height: canvasSize.value
+// });
+
 // TODO 界面缩放
 function onWindowResize() {}
 
-onMounted(() => {
+onMounted(async () => {
   if (!canvas.value!.getContext) {
     console.warn('不支持 canvas')
     return
@@ -115,18 +148,12 @@ onMounted(() => {
 
   // https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas#turn_off_transparency
   const ctx = canvas.value!.getContext('2d', { alpha: false })!
-  // 移动原点至中心
-  // ----> x
-  // |
-  // |
-  // ⋁
-  // y
-  ctx.translate(canvasSize.value / 2, canvasSize.value / 2)
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 
-  drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, minSideLength: props.minSideLength, sideColor: props.sideColor })
-  // drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, minSideLength: props.minSideLength, diagonalColor: props.diagonalColor })
+  init(ctx)
 
+  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, minSideLength: props.minSideLength, sideColor: props.sideColor })
+  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, minSideLength: props.minSideLength, diagonalColor: props.diagonalColor })
+  console.log('绘制完成')
   window.addEventListener('resize', onWindowResize)
 })
 
@@ -142,53 +169,40 @@ type TDrawSideOptions = Pick<TProps, 'sideCounts' | 'sideWidth' | 'minSideLength
  * @param options
  */
 async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions) {
-  const { sideCounts, sideWidth, sideColor } = options
+  // eslint-disable-next-line no-async-promise-executor
+  return new Promise(async (resolve) => {
+    const { sideCounts, sideWidth, sideColor } = options
 
-  ctx.lineWidth = sideWidth
-  ctx.lineJoin = 'round'
-  ctx.strokeStyle = sideColor
-  // TODO 保证 canvas 清晰度 (不失真)
-  // SVG 实现
+    ctx.lineWidth = sideWidth
+    ctx.strokeStyle = sideColor
+    // TODO 保证 canvas 清晰度 (不失真)
+    // SVG 实现
 
-  // 动画可参考 https://juejin.cn/post/6924866572972457992
+    // 动画可参考 https://juejin.cn/post/6924866572972457992
 
-  ctx.beginPath()
-  ctx.moveTo(points.value[0].x, points.value[0].y)
+    ctx.beginPath()
+    ctx.moveTo(points.value[0].x, points.value[0].y)
 
-  const index = 0
+    if (props.animation) {
+      for (let i = 0; i < sideCounts - 1; i++)
+      // for (let i = 0; i < 2; i++)
+        await drawLineWithAnimation(ctx, points.value[i], points.value[i + 1])
 
-  // const drawOneSide = () => {
-  //
-  //   if (index < sideCounts) {
-  //     console.log('hhh', index, sideCounts)
-  //     ctx.lineTo(points.value[index].x, points.value[index].y)
-  //     ctx.stroke()
-  //     // ctx.restore()
-  //     index++
-  //     setTimeout(() => {
-  //       requestAnimationFrame(drawOneSide)
-  //     }, 500)
-  //     // requestAnimationFrame(drawOneSide)
-  //   }
-  //   else {
-  //     ctx.lineTo(points.value[0].x, points.value[0].y)
-  //     ctx.stroke()
-  //
-  //   }
-  // }
-  //
-  // requestAnimationFrame(drawOneSide)
+      // 闭合之
+      await drawLineWithAnimation(ctx, points.value[points.value.length - 1], points.value[0])
+    }
+    else {
+      for (let i = 0; i < sideCounts; i++)
+      // for (let i = 0; i < 2; i++)
+        ctx.lineTo(points.value[i].x, points.value[i].y)
 
-  for (let i = 0; i < sideCounts - 1; i++)
-    await drawLineWithAnimation(ctx, points.value[i], points.value[i + 1])
-  // drawLineWithAnimation(ctx, points.value[0], points.value[1])
+      // 闭合之
+      ctx.lineTo(points.value[0].x, points.value[0].y)
+      ctx.stroke()
+    }
 
-  // ctx.lineTo(points.value[i].x, points.value[i].y)
-
-  // 闭合之, 等价于 ctx.closePath()
-  ctx.lineTo(points.value[0].x, points.value[0].y)
-
-  ctx.stroke()
+    resolve(true)
+  })
 }
 
 type TDrawDiagonalOptions = Pick<TProps, 'sideCounts' | 'diagonalWidth' | 'minSideLength' | 'diagonalColor'>
@@ -198,35 +212,44 @@ type TDrawDiagonalOptions = Pick<TProps, 'sideCounts' | 'diagonalWidth' | 'minSi
  * @param ctx
  * @param options
  */
-function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagonalOptions) {
-  const { sideCounts, diagonalWidth, minSideLength, diagonalColor } = options
+async function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagonalOptions) {
+  // eslint-disable-next-line no-async-promise-executor
+  return new Promise(async (resolve) => {
+    const { sideCounts, diagonalWidth, minSideLength, diagonalColor } = options
 
-  ctx.lineWidth = diagonalWidth
-  ctx.lineJoin = 'round'
-  ctx.strokeStyle = diagonalColor
+    ctx.lineWidth = diagonalWidth
+    ctx.strokeStyle = diagonalColor
 
-  // const drawOneDiagonal = () => {
-  //   requestAnimationFrame(drawOneDiagonal)
-  // }
-  //
-  // requestAnimationFrame(drawOneDiagonal)
+    // const drawOneDiagonal = () => {
+    //   requestAnimationFrame(drawOneDiagonal)
+    // }
+    //
+    // requestAnimationFrame(drawOneDiagonal)
 
-  for (let i = 0; i < sideCounts - 1; i++) {
-    // 跳过相邻顶点
-    for (let j = i + 2; j < sideCounts; j++) {
-      // 避开起点相邻点
-      if (i === 0 && j === sideCounts - 1)
-        break
+    for (let i = 0; i < sideCounts - 1; i++) {
+      // 跳过相邻顶点
+      for (let j = i + 2; j < sideCounts; j++) {
+        // 避开起点相邻点
+        if (i === 0 && j === sideCounts - 1)
+          break
 
-      ctx.beginPath()
-      ctx.moveTo(points.value[i].x, points.value[i].y)
-      ctx.lineTo(points.value[j].x, points.value[j].y)
-      ctx.stroke()
+        if (props.animation) {
+          await drawLineWithAnimation(ctx, points.value[i], points.value[j])
+        }
+        else {
+          ctx.beginPath()
+          ctx.moveTo(points.value[i].x, points.value[i].y)
+          ctx.lineTo(points.value[j].x, points.value[j].y)
+          ctx.stroke()
+        }
+      }
     }
-  }
+
+    resolve(true)
+  })
 }
 
-function drawLineWithAnimation(ctx: CanvasRenderingContext2D, start: Record<'x' | 'y', number>, end: Record<'x' | 'y', number>) {
+function drawLineWithAnimation(ctx: CanvasRenderingContext2D, start: TPoint, end: TPoint) {
   return new Promise((resolve) => {
     ctx.beginPath()
     ctx.moveTo(start.x, start.y)
@@ -235,19 +258,18 @@ function drawLineWithAnimation(ctx: CanvasRenderingContext2D, start: Record<'x' 
     const duration = 300
     const dx = end.x - start.x
     const dy = end.y - start.y
-    const distance = (dx ** 2 + dy ** 2) ** 0.5
-    const speed = distance / duration
     const startTime = Date.now()
 
     const drawPiece = () => {
       const currentTime = Date.now()
-      if (currentTime - startTime > duration) {
+      const fraction = (currentTime - startTime) / duration
+      if (fraction > 1) {
         ctx.lineTo(end.x, end.y)
         ctx.stroke()
         resolve(true)
         return
       }
-      ctx.lineTo(start.x + dx * (currentTime - startTime) / duration, start.y + dy * (currentTime - startTime) / duration)
+      ctx.lineTo(start.x + dx * fraction, start.y + dy * fraction)
       ctx.stroke()
       requestAnimationFrame(drawPiece)
     }
@@ -255,16 +277,106 @@ function drawLineWithAnimation(ctx: CanvasRenderingContext2D, start: Record<'x' 
     requestAnimationFrame(drawPiece)
   })
 }
+
+function eraseLineWithAnimation(ctx: CanvasRenderingContext2D, start: TPoint, end: TPoint) {
+
+}
+
+function init(ctx: CanvasRenderingContext2D) {
+  // 全局配置
+  ctx.lineJoin = 'miter'
+  ctx.fillStyle = 'white'
+  ctx.fillRect(0, 0, canvasSize.value, canvasSize.value)
+
+  // 移动原点至中心
+  // ----> x
+  // |
+  // |
+  // ⋁
+  // y
+  ctx.translate(canvasSize.value / 2, canvasSize.value / 2)
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+}
+
+const supportedExportFormat = ['JPEG', 'PNG', 'SVG', 'GIF'] as const
+
+// svg 在线预览 https://uutool.cn/svg-preview/
+async function toSVG() {
+  const _ctx = new C2S(canvasSize.value, canvasSize.value)
+
+  init(_ctx)
+
+  await drawSide(_ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, minSideLength: props.minSideLength, sideColor: props.sideColor })
+  await drawDiagonal(_ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, minSideLength: props.minSideLength, diagonalColor: props.diagonalColor })
+  const serializedSVG = _ctx.getSerializedSvg()
+  console.log('serializedSVG', serializedSVG)
+
+  const blob = new Blob([serializedSVG], { type: 'image/scg+xml;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  download(url, 'svg-test.svg')
+}
+
+/**
+ * toGif
+ * https://github.com/jnordberg/gif.js
+ * https://github.com/antimatter15/jsgif
+ * @param format 待转换的图片格式
+ */
+async function exportCanvas(format: typeof supportedExportFormat[number]) {
+  let url = ''
+  switch (format) {
+    case 'GIF':
+      break
+    case 'JPEG':
+      url = canvas.value.toDataURL('image/jpeg', 1.0)
+      download(url, 'jpeg-test')
+      break
+    case 'PNG':
+      url = canvas.value.toDataURL('image/png')
+      download(url, 'png-test')
+      break
+    case 'SVG':
+      toSVG()
+  }
+  // canvas.toDataURL('image/jpg')
+  // canvas.toDataURL('image/jpeg', 1.0)
+  // canvas.toDataURL('image/png')
+}
+
+/**
+ * 下载图片
+ * @param url 路径
+ * @param fileName 图片名
+ */
+function download(url: string, fileName: string) {
+  const a = document.createElement('a')
+  a.download = fileName
+  a.href = url
+
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
 </script>
 
 <template>
-  <!--  正多边形 -->
-  <canvas ref="canvas" :width="canvasSize" :height="canvasSize" />
-  <div>{{ points }}</div>
+  <div>
+    <el-button v-for="format in ['JPEG', 'PNG', 'SVG', 'GIF']" :key="format" type="primary" @click="exportCanvas(format)">
+      <div flex-center>
+        <img i-mdi-tray-arrow-down alt="下载"><span ml-6px flex-self-baseline>{{ format }}</span>
+      </div>
+    </el-button>
+    <!--  正多边形 -->
+    <canvas ref="canvas" :width="canvasSize" :height="canvasSize" />
+    <!--  导出 jpeg png svg base64 gif -->
+    <!--  放大查看 -->
+    <!--  鼠标 -->
+  </div>
 </template>
 
 <style scoped lang="scss">
 canvas {
+  // background-color: white;
   border: 1px solid green;
 }
 </style>
