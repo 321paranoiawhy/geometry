@@ -13,6 +13,8 @@ on:
 
 jobs:
   docs:
+    permissions:
+      contents: write
     runs-on: ${{ matrix.os }}
     env:
       # We used "docs" as directory name for our documentation, we will be referencing this later
