@@ -1,5 +1,6 @@
 {
   "type": "module",
+  "homepage": "https://321paranoiawhy.github.io/geometry",
   "private": true,
   "packageManager": "pnpm@9.1.0",
   "engines": {
@@ -11,6 +12,7 @@
     "dev": "nuxi dev",
     "generate": "nuxi generate",
     "prepare": "nuxi prepare",
+    "deploy": "gh-pages --dotfiles -d .output/public",
     "start": "node .output/server/index.mjs",
     "start:generate": "npx serve .output/public",
     "lint": "eslint .",
@@ -33,6 +35,7 @@
     "consola": "^3.2.3",
     "eslint": "^9.2.0",
     "eslint-plugin-format": "^0.1.1",
+    "gh-pages": "^6.1.1",
     "nuxt": "^3.11.2",
     "pinia": "^2.1.7",
     "sass": "^1.77.1",
