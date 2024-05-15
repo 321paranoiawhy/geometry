@@ -1,1 +1,0 @@
-import{n as t,_ as s}from"./CM_1t94M.js";import{f as a,m as r,o as c,c as _,a as p,t as m,h as u,b as i}from"./dN8hFS0f.js";import"./l7-Hrwuw.js";import"./DlAUqK2U.js";const k=a({__name:"[side]",setup(l){const o=t.cn,e=+r().params.side;return(f,h)=>{const n=s;return c(),_("div",null,[p("h2",null,"正"+m(u(o).encodeS(e))+"边形",1),i(n,{"side-counts":e})])}}});export{k as default};
