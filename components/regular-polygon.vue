@@ -1,6 +1,5 @@
 <script setup lang="ts">
-// import rawGif from '@/utils/gifjs/gif?raw'
-// import rawGifWorker from '@/utils/gifjs/gif.worker?raw'
+import rawGifWorker from '@/utils/gifjs/gif.worker?raw'
 import canvas2svg from '@/utils/canvas2svg?raw'
 
 const props = withDefaults(defineProps<Partial<TProps>>(), {
@@ -16,11 +15,29 @@ const props = withDefaults(defineProps<Partial<TProps>>(), {
   lazy: true,
 })
 
+const FILE_NAME = `regular-polygon-${props.sideCounts}`
+
+const globalStore = useGlobalStore()
+const gifLoading = ref(false)
+const gifProgress = ref(0)
+const gifSrc = ref('')
+
 useHead({
   script: [
-    //   { innerHTML: rawGif },
-    // { innerHTML: rawGifWorker },
-    { innerHTML: canvas2svg },
+    // import('https://cdn.bootcdn.net/ajax/libs/gif.js/0.2.0/gif.js').then().catch()
+    { key: 'canvas2svg', innerHTML: canvas2svg },
+    // https://unhead.unjs.io/usage/composables/use-script
+    { key: 'gif', src: 'https://cdn.bootcdn.net/ajax/libs/gif.js/0.2.0/gif.js', onload: () => {
+      console.log('gif.js loaded')
+      globalStore.setGifJsLoaded(true)
+    }, onerror: () => {
+      ElMessage.error({ message: 'Fail to load gif.js from CDN' })
+    } },
+    // { key: 'gif.worker', src: 'https://cdn.bootcdn.net/ajax/libs/gif.js/0.2.0/gif.worker.js', onload: () => {
+    //   console.log('gif.worker.js loaded')
+    // }, onerror: () => {
+    //   ElMessage.error({ message: 'Fail to load gif.worker.js from CDN' })
+    // } },
   ],
 })
 
@@ -128,14 +145,6 @@ const points = computed(() => {
 })
 
 const canvas = ref<HTMLCanvasElement>()
-// console.log(GIF)
-// const gif = new GIF({
-//   workers: 2,
-//   quality: 5,
-//   debug: true,
-//   width: canvasSize.value,
-//   height: canvasSize.value
-// });
 
 // TODO 界面缩放
 function onWindowResize() {}
@@ -151,8 +160,8 @@ onMounted(async () => {
 
   init(ctx)
 
-  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, minSideLength: props.minSideLength, sideColor: props.sideColor })
-  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, minSideLength: props.minSideLength, diagonalColor: props.diagonalColor })
+  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor })
+  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
   console.log('绘制完成')
   window.addEventListener('resize', onWindowResize)
 })
@@ -161,14 +170,15 @@ onUnmounted(() => {
   window.removeEventListener('resize', onWindowResize)
 })
 
-type TDrawSideOptions = Pick<TProps, 'sideCounts' | 'sideWidth' | 'minSideLength' | 'sideColor'>
+type TDrawSideOptions = Pick<TProps, 'sideCounts' | 'sideWidth' | 'sideColor'>
 
 /**
  * 绘制边
- * @param ctx
+ * @param ctx canvas 上下文
  * @param options
+ * @param record
  */
-async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions) {
+async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions, record = () => {}) {
   // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve) => {
     const { sideCounts, sideWidth, sideColor } = options
@@ -176,28 +186,29 @@ async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions
     ctx.lineWidth = sideWidth
     ctx.strokeStyle = sideColor
     // TODO 保证 canvas 清晰度 (不失真)
-    // SVG 实现
-
     // 动画可参考 https://juejin.cn/post/6924866572972457992
-
     ctx.beginPath()
     ctx.moveTo(points.value[0].x, points.value[0].y)
 
     if (props.animation) {
-      for (let i = 0; i < sideCounts - 1; i++)
-      // for (let i = 0; i < 2; i++)
+      for (let i = 0; i < sideCounts - 1; i++) {
         await drawLineWithAnimation(ctx, points.value[i], points.value[i + 1])
-
+        record()
+      }
       // 闭合之
       await drawLineWithAnimation(ctx, points.value[points.value.length - 1], points.value[0])
+      record()
     }
     else {
-      for (let i = 0; i < sideCounts; i++)
-      // for (let i = 0; i < 2; i++)
+      for (let i = 0; i < sideCounts; i++) {
         ctx.lineTo(points.value[i].x, points.value[i].y)
+        record()
+      }
+      // for (let i = 0; i < 2; i++)
 
       // 闭合之
       ctx.lineTo(points.value[0].x, points.value[0].y)
+      record()
       ctx.stroke()
     }
 
@@ -205,26 +216,21 @@ async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions
   })
 }
 
-type TDrawDiagonalOptions = Pick<TProps, 'sideCounts' | 'diagonalWidth' | 'minSideLength' | 'diagonalColor'>
+type TDrawDiagonalOptions = Pick<TProps, 'sideCounts' | 'diagonalWidth' | 'diagonalColor'>
 
 /**
  * 绘制对角线, 正 n 边形有 n * (n - 3) / 2 条对角线
- * @param ctx
+ * @param ctx canvas 上下文
  * @param options
+ * @param record
  */
-async function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagonalOptions) {
+async function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagonalOptions, record = () => {}) {
   // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve) => {
-    const { sideCounts, diagonalWidth, minSideLength, diagonalColor } = options
+    const { sideCounts, diagonalWidth, diagonalColor } = options
 
     ctx.lineWidth = diagonalWidth
     ctx.strokeStyle = diagonalColor
-
-    // const drawOneDiagonal = () => {
-    //   requestAnimationFrame(drawOneDiagonal)
-    // }
-    //
-    // requestAnimationFrame(drawOneDiagonal)
 
     for (let i = 0; i < sideCounts - 1; i++) {
       // 跳过相邻顶点
@@ -235,11 +241,13 @@ async function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagona
 
         if (props.animation) {
           await drawLineWithAnimation(ctx, points.value[i], points.value[j])
+          record()
         }
         else {
           ctx.beginPath()
           ctx.moveTo(points.value[i].x, points.value[i].y)
           ctx.lineTo(points.value[j].x, points.value[j].y)
+          record()
           ctx.stroke()
         }
       }
@@ -282,6 +290,10 @@ function eraseLineWithAnimation(ctx: CanvasRenderingContext2D, start: TPoint, en
 
 }
 
+/**
+ * canvas 全局通用配置
+ * @param ctx canvas context
+ */
 function init(ctx: CanvasRenderingContext2D) {
   // 全局配置
   ctx.lineJoin = 'miter'
@@ -298,7 +310,10 @@ function init(ctx: CanvasRenderingContext2D) {
   ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 }
 
-const supportedExportFormat = ['JPEG', 'PNG', 'SVG', 'GIF'] as const
+/**
+ * 支持的导出图片类型
+ */
+const supportedExportFormat = ['JPEG', 'PNG', 'SVG', 'GIF', 'BASE64'] as const
 
 // svg 在线预览 https://uutool.cn/svg-preview/
 async function toSVG() {
@@ -306,41 +321,122 @@ async function toSVG() {
 
   init(_ctx)
 
-  await drawSide(_ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, minSideLength: props.minSideLength, sideColor: props.sideColor })
-  await drawDiagonal(_ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, minSideLength: props.minSideLength, diagonalColor: props.diagonalColor })
-  const serializedSVG = _ctx.getSerializedSvg()
-  console.log('serializedSVG', serializedSVG)
+  await drawSide(_ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor })
+  await drawDiagonal(_ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
 
+  const serializedSVG = _ctx.getSerializedSvg()
   const blob = new Blob([serializedSVG], { type: 'image/scg+xml;charset=utf-8' })
   const url = URL.createObjectURL(blob)
-  download(url, 'svg-test.svg')
+
+  download(url, `${FILE_NAME}.svg`)
 }
 
 /**
  * toGif
  * https://github.com/jnordberg/gif.js
  * https://github.com/antimatter15/jsgif
+ * @param ctx canvas 上下文
+ */
+async function toGif(ctx: CanvasRenderingContext2D) {
+  const isAvailable = globalStore.isGifJsLoaded && typeof GIF === 'function'
+
+  if (!isAvailable)
+    return ElMessage.error({ message: 'Please wait until gif.js loaded' })
+
+  // const _ctx = new C2S(canvasSize.value, canvasSize.value)
+  //
+  // init(_ctx)
+
+  // gif 不可共用, 每次使用时均须重新实例化
+  const gif = new GIF({
+    // 默认值 gif.worker.js
+    // Worker 可借助于 blob url 启动
+    // https://github.com/jnordberg/gif.js/issues/115#issuecomment-588581837
+    workerScript: URL.createObjectURL(new Blob([rawGifWorker], { type: 'application/javascript' })),
+    workers: 2,
+    repeat: 0, // 0 forever, -1 once
+    background: '#fff', // 背景色
+    quality: 10, // 默认值 10, 质量越低性能越好
+    debug: import.meta.dev,
+    width: canvasSize.value,
+    height: canvasSize.value,
+  })
+
+  // gif.addFrame(ctx, { copy: true, delay: 100 })
+
+  gif.on('start', () => {
+    gifLoading.value = true
+  })
+
+  // 监听进度
+  gif.on('progress', (progress: number) => {
+    // progress 0 ~ 1
+    console.log(progress)
+    gifProgress.value = progress
+  })
+
+  // 监听完成事件
+  gif.on('finished', (blob: Blob) => {
+    gifLoading.value = false
+
+    const url = URL.createObjectURL(blob)
+    gifSrc.value = url
+    download(url, `${FILE_NAME}.gif`)
+
+    gif.abort()
+  })
+
+  gif.on('abort', () => {
+    gifLoading.value = false
+    gifProgress.value = 0
+  })
+
+  const record = () => {
+    gif.addFrame(ctx, { copy: true, delay: props.sideCounts > 10 ? 100 : 300 })
+  }
+
+  ctx.fillStyle = '#fff'
+  ctx.clearRect(-canvasSize.value / 2, -canvasSize.value / 2, canvasSize.value, canvasSize.value)
+  ctx.fillRect(-canvasSize.value / 2, -canvasSize.value / 2, canvasSize.value, canvasSize.value)
+
+  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor }, record)
+  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor }, record)
+
+  // 渲染 gif
+  gif.render()
+}
+
+/**
+ * 导出 canvas
  * @param format 待转换的图片格式
  */
 async function exportCanvas(format: typeof supportedExportFormat[number]) {
   let url = ''
   switch (format) {
     case 'GIF':
+      toGif(canvas.value!.getContext('2d')!)
       break
     case 'JPEG':
-      url = canvas.value.toDataURL('image/jpeg', 1.0)
-      download(url, 'jpeg-test')
+      url = canvas.value!.toDataURL('image/jpeg', 1.0)
+      download(url, `${FILE_NAME}.jpeg`)
       break
     case 'PNG':
-      url = canvas.value.toDataURL('image/png')
-      download(url, 'png-test')
+      url = canvas.value!.toDataURL('image/png', 1.0)
+      download(url, `${FILE_NAME}.png`)
       break
     case 'SVG':
       toSVG()
+      break
+    case 'BASE64':
+      url = canvas.value!.toDataURL('image/png', 1.0)
+      const { copy } = useClipboard({ legacy: true })
+      copy(url).then(() => {
+        ElMessage.success({ message: 'Copied!' })
+      }).catch(() => {
+        ElMessage.error({ message: 'Fail to copy' })
+      })
+      break
   }
-  // canvas.toDataURL('image/jpg')
-  // canvas.toDataURL('image/jpeg', 1.0)
-  // canvas.toDataURL('image/png')
 }
 
 /**
@@ -360,23 +456,28 @@ function download(url: string, fileName: string) {
 </script>
 
 <template>
+  <!--  正多边形 -->
   <div>
-    <el-button v-for="format in ['JPEG', 'PNG', 'SVG', 'GIF']" :key="format" type="primary" @click="exportCanvas(format)">
+    <el-button v-for="format in supportedExportFormat" :key="format" type="primary" @click="exportCanvas(format)">
       <div flex-center>
         <img i-mdi-tray-arrow-down alt="下载"><span ml-6px flex-self-baseline>{{ format }}</span>
       </div>
     </el-button>
-    <!--  正多边形 -->
-    <canvas ref="canvas" :width="canvasSize" :height="canvasSize" />
+    <div v-loading="gifLoading && { text: `${+gifProgress.toFixed(2) * 100}%` }" mt-16px w-fit>
+      <canvas ref="canvas" :width="canvasSize" :height="canvasSize" />
+    </div>
+
+    <img v-if="gifSrc" :src="gifSrc" :alt="`regular-polygon-${sideCounts}.gif`" :width="canvasSize" :height="canvasSize">
     <!--  导出 jpeg png svg base64 gif -->
     <!--  放大查看 -->
     <!--  鼠标 -->
+    <!--    <canvas ref="canvas" :width="canvasSize" :height="canvasSize" /> -->
   </div>
 </template>
 
 <style scoped lang="scss">
 canvas {
-  // background-color: white;
+  //background-color: white;
   border: 1px solid green;
 }
 </style>
