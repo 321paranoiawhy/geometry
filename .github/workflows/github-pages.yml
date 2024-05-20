@@ -19,6 +19,7 @@ jobs:
     env:
       # We used "docs" as directory name for our documentation, we will be referencing this later
       working-directory: .
+      NUXT_APP_BASE_URL: '/geometry/'
 
     strategy:
       matrix:
@@ -50,7 +51,7 @@ jobs:
       - name: Generate
         working-directory: ${{env.working-directory}}
       # https://nuxt.com/deploy/github-pages
-        run: pnpm build --preset github_pages
+        run: NUXT_APP_BASE_URL=/geometry/ pnpm build --preset github_pages
 
       # Pushes the files to a branch called "gh-pages" that will be used as deployment branch
       - name: Deploy
