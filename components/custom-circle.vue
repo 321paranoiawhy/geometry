@@ -3,10 +3,11 @@ import rawGifWorker from '@/utils/gifjs/gif.worker?raw'
 import canvas2svg from '@/utils/canvas2svg?raw'
 
 const props = withDefaults(defineProps<Partial<TProps>>(), {
+  radius: 100,
   minCanvasSize: 500,
-  sideCounts: 50,
+  vertices: 50,
   sideWidth: 1,
-  sideColor: 'black',
+  circleColor: 'black',
   minSideLength: 100,
   diagonalWidth: 1,
   diagonalColor: 'black',
@@ -15,7 +16,7 @@ const props = withDefaults(defineProps<Partial<TProps>>(), {
   lazy: true,
 })
 
-const FILE_NAME = `regular-polygon-${props.sideCounts}`
+const FILE_NAME = `circle-${props.vertices}`
 
 const globalStore = useGlobalStore()
 const gifLoading = ref(false)
@@ -42,19 +43,23 @@ useHead({
 })
 
 interface TProps {
+  /**
+   * 圆半径
+   */
+  radius: number
   minCanvasSize: number
   /**
-   * 正多边形边数
+   * 顶点数
    */
-  sideCounts: number
+  vertices: number
   /**
-   * 边的宽度
+   * 圆周颜色
    */
   sideWidth: number
   /**
    * 边的颜色
    */
-  sideColor: string
+  circleColor: string
   /**
    * 对角线宽度
    */
@@ -106,14 +111,13 @@ interface TProps {
 //
 // })
 
-// 直径
 const D = ref(0)
 const canvasSize = computed(() => {
   // 取任意相邻两顶点与正多边形中心相连所成的等腰三角形
   // 该小三角形各边长分别为 L r r
   // sin(2π / n) = (L / 2) / r
   // => d = 2r = L / sin(2π / n)
-  const n = props.sideCounts
+  const n = props.vertices
   const L = props.minSideLength
   const d = L / Math.sin(2 * Math.PI / n)
   // eslint-disable-next-line vue/no-side-effects-in-computed-properties
@@ -130,10 +134,10 @@ type TPoint = Record<'x' | 'y', number>
 const points = computed(() => {
   const result: TPoint[] = []
 
-  const r = D.value / 2
+  const r = props.radius
   // 相邻两对角线夹角
-  const deltaTheta = 2 * Math.PI / props.sideCounts
-  for (let i = 0; i < props.sideCounts; i++) {
+  const deltaTheta = 2 * Math.PI / props.vertices
+  for (let i = 0; i < props.vertices; i++) {
     const theta = i * deltaTheta
     // 向右为 x 轴正方向
     // 向下为 y 轴正方向
@@ -161,8 +165,8 @@ onMounted(async () => {
 
   init(ctx)
 
-  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor })
-  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
+  await drawCircle(ctx, { vertices: props.vertices, sideWidth: props.sideWidth, circleColor: props.circleColor })
+  await drawDiagonal(ctx, { vertices: props.vertices, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
   console.log('绘制完成')
   window.addEventListener('resize', onWindowResize)
 })
@@ -171,15 +175,22 @@ onUnmounted(() => {
   window.removeEventListener('resize', onWindowResize)
 })
 
-watchDebounced(() => [props.sideCounts, props.sideColor, props.diagonalColor, props.animation], async () => {
+watchDebounced(() => [props.vertices, props.circleColor, props.diagonalColor, props.animation], async () => {
   const ctx = canvas.value!.getContext('2d', { alpha: false })!
   clearCanvas(ctx)
   gifSrc.value = ''
-  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor })
-  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
+  await drawCircle(ctx, { vertices: props.vertices, sideWidth: props.sideWidth, circleColor: props.circleColor })
+  await drawDiagonal(ctx, { vertices: props.vertices, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
 }, { debounce: 500, maxWait: 1000, immediate: false })
 
-type TDrawSideOptions = Pick<TProps, 'sideCounts' | 'sideWidth' | 'sideColor'>
+function clearCanvas(ctx: CanvasRenderingContext2D) {
+  // 重置宽高即可重置 canvas 画布
+  canvas.value!.width = canvas.value!.width
+  canvas.value!.height = canvas.value!.height
+  init(ctx)
+}
+
+type TDrawSideOptions = Pick<TProps, 'vertices' | 'sideWidth' | 'circleColor'>
 
 /**
  * 绘制边
@@ -187,36 +198,27 @@ type TDrawSideOptions = Pick<TProps, 'sideCounts' | 'sideWidth' | 'sideColor'>
  * @param options
  * @param record
  */
-async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions, record = () => {}) {
+async function drawCircle(ctx: CanvasRenderingContext2D, options: TDrawSideOptions, record = () => {}) {
   // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve) => {
-    const { sideCounts, sideWidth, sideColor } = options
+    const { vertices, sideWidth, circleColor } = options
 
     ctx.lineWidth = sideWidth
-    ctx.strokeStyle = sideColor
+    ctx.strokeStyle = circleColor
     // 动画可参考 https://juejin.cn/post/6924866572972457992
     ctx.beginPath()
-    ctx.moveTo(points.value[0].x, points.value[0].y)
 
     if (props.animation) {
-      for (let i = 0; i < sideCounts - 1; i++) {
-        await drawLineWithAnimation(ctx, points.value[i], points.value[i + 1])
-        record()
-      }
-      // 闭合之
-      await drawLineWithAnimation(ctx, points.value[points.value.length - 1], points.value[0])
-      record()
+      await drawArcWithAnimation(ctx, { x: 0, y: 0 }, props.radius, -Math.PI / 2, 3 * Math.PI / 2, record)
     }
     else {
-      for (let i = 0; i < sideCounts; i++) {
-        ctx.lineTo(points.value[i].x, points.value[i].y)
-        record()
-      }
-      // for (let i = 0; i < 2; i++)
+      // for (let i = 0; i < vertices; i++) {
+      //   ctx.lineTo(points.value[i].x, points.value[i].y)
+      //   record()
+      // }
 
-      // 闭合之
-      ctx.lineTo(points.value[0].x, points.value[0].y)
-      record()
+      ctx.arc(0, 0, props.radius, -Math.PI / 2, 3 * Math.PI / 2, false)
+
       ctx.stroke()
     }
 
@@ -224,7 +226,7 @@ async function drawSide(ctx: CanvasRenderingContext2D, options: TDrawSideOptions
   })
 }
 
-type TDrawDiagonalOptions = Pick<TProps, 'sideCounts' | 'diagonalWidth' | 'diagonalColor'>
+type TDrawDiagonalOptions = Pick<TProps, 'vertices' | 'diagonalWidth' | 'diagonalColor'>
 
 /**
  * 绘制对角线, 正 n 边形有 n * (n - 3) / 2 条对角线
@@ -235,16 +237,16 @@ type TDrawDiagonalOptions = Pick<TProps, 'sideCounts' | 'diagonalWidth' | 'diago
 async function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagonalOptions, record = () => {}) {
   // eslint-disable-next-line no-async-promise-executor
   return new Promise(async (resolve) => {
-    const { sideCounts, diagonalWidth, diagonalColor } = options
+    const { vertices, diagonalWidth, diagonalColor } = options
 
     ctx.lineWidth = diagonalWidth
     ctx.strokeStyle = diagonalColor
 
-    for (let i = 0; i < sideCounts - 1; i++) {
+    for (let i = 0; i < vertices - 1; i++) {
       // 跳过相邻顶点
-      for (let j = i + 2; j < sideCounts; j++) {
+      for (let j = i + 2; j < vertices; j++) {
         // 避开起点相邻点
-        if (i === 0 && j === sideCounts - 1)
+        if (i === 0 && j === vertices - 1)
           break
 
         if (props.animation) {
@@ -265,13 +267,48 @@ async function drawDiagonal(ctx: CanvasRenderingContext2D, options: TDrawDiagona
   })
 }
 
+function drawArcWithAnimation(ctx: CanvasRenderingContext2D, center: TPoint, radius: number, startAngle: number, endAngle: number, record = () => {}) {
+  return new Promise((resolve) => {
+    ctx.beginPath()
+    const angle = endAngle - startAngle
+
+    // 动画时长
+    const duration = 2000
+    const startTime = Date.now()
+
+    let lastAngle = startAngle
+
+    const drawPiece = () => {
+      const currentTime = Date.now()
+      const fraction = (currentTime - startTime) / duration
+      if (fraction > 1) {
+        ctx.arc(center.x, center.y, radius, lastAngle, endAngle, false)
+        ctx.stroke()
+        record()
+        resolve(true)
+        return
+      }
+
+      const currentAngle = startAngle + fraction * angle
+      ctx.arc(center.x, center.y, radius, lastAngle, currentAngle, false)
+      lastAngle = currentAngle
+
+      ctx.stroke()
+      record()
+      requestAnimationFrame(drawPiece)
+    }
+
+    requestAnimationFrame(drawPiece)
+  })
+}
+
 function drawLineWithAnimation(ctx: CanvasRenderingContext2D, start: TPoint, end: TPoint) {
   return new Promise((resolve) => {
     ctx.beginPath()
     ctx.moveTo(start.x, start.y)
 
-    // 动画时长
-    const duration = 250
+    // 动画时长 1s (1000ms)
+    const duration = 300
     const dx = end.x - start.x
     const dy = end.y - start.y
     const startTime = Date.now()
@@ -329,8 +366,8 @@ async function toSVG() {
 
   init(_ctx)
 
-  await drawSide(_ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor })
-  await drawDiagonal(_ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
+  await drawCircle(_ctx, { vertices: props.vertices, sideWidth: props.sideWidth, circleColor: props.circleColor })
+  await drawDiagonal(_ctx, { vertices: props.vertices, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor })
 
   const serializedSVG = _ctx.getSerializedSvg()
   const blob = new Blob([serializedSVG], { type: 'image/scg+xml;charset=utf-8' })
@@ -400,23 +437,18 @@ async function toGif(ctx: CanvasRenderingContext2D) {
   })
 
   const record = () => {
-    gif.addFrame(ctx, { copy: true, delay: props.sideCounts > 10 ? 100 : 300 })
+    gif.addFrame(ctx, { copy: true, delay: props.vertices > 10 ? 100 : 300 })
   }
 
-  clearCanvas(ctx)
+  ctx.fillStyle = '#fff'
+  ctx.clearRect(-canvasSize.value / 2, -canvasSize.value / 2, canvasSize.value, canvasSize.value)
+  ctx.fillRect(-canvasSize.value / 2, -canvasSize.value / 2, canvasSize.value, canvasSize.value)
 
-  await drawSide(ctx, { sideCounts: props.sideCounts, sideWidth: props.sideWidth, sideColor: props.sideColor }, record)
-  await drawDiagonal(ctx, { sideCounts: props.sideCounts, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor }, record)
+  await drawCircle(ctx, { vertices: props.vertices, sideWidth: props.sideWidth, circleColor: props.circleColor }, record)
+  await drawDiagonal(ctx, { vertices: props.vertices, diagonalWidth: props.diagonalWidth, diagonalColor: props.diagonalColor }, record)
 
   // 渲染 gif
   gif.render()
-}
-
-function clearCanvas(ctx: CanvasRenderingContext2D) {
-  // 重置宽高即可重置 canvas 画布
-  canvas.value!.width = canvas.value!.width
-  canvas.value!.height = canvas.value!.height
-  init(ctx)
 }
 
 /**
@@ -469,7 +501,7 @@ function download(url: string, fileName: string) {
 </script>
 
 <template>
-  <!--  正多边形 -->
+  <!--  圆形 -->
   <div>
     <el-button v-for="format in supportedExportFormat" :key="format" type="primary" @click="exportCanvas(format)">
       <div flex-center>
@@ -480,7 +512,7 @@ function download(url: string, fileName: string) {
       <canvas ref="canvas" :width="canvasSize" :height="canvasSize" />
     </div>
 
-    <img v-if="gifSrc" :src="gifSrc" :alt="`regular-polygon-${sideCounts}.gif`" :width="canvasSize" :height="canvasSize">
+    <img v-if="gifSrc" :src="gifSrc" :alt="`regular-polygon-${vertices}.gif`" :width="canvasSize" :height="canvasSize">
     <!--  导出 jpeg png svg base64 gif -->
     <!--  放大查看 -->
     <!--  鼠标 -->

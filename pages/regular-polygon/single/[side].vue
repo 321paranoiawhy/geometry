@@ -2,11 +2,10 @@
 import nzh from 'nzh'
 
 const nzhCN = nzh.cn
-const route = useRoute<'regular-polygon-side'>()
+const route = useRoute<'regular-polygon-single-side'>()
 const side = +route.params.side
-if (Number.isNaN(side)) {
-  // ElMe
-}
+if (Number.isNaN(side))
+  ElMessage.error({ message: 'Invalid route param side!' })
 </script>
 
 <template>

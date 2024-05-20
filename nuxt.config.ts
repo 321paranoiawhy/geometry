@@ -19,6 +19,19 @@ export default defineNuxtConfig({
     },
   },
 
+  generate: {
+    routes: [
+      // 正多边形
+      '/regular-polygon/single/:side',
+      '/regular-polygon/showcase',
+      '/regular-polygon/playground',
+      // 圆形
+      '/circle/single/:vertex',
+      '/circle/showcase',
+      '/circle/playground',
+    ],
+  },
+
   experimental: {
     // when using generate, payload js assets included in sw precache manifest
     // but missing on offline, disabling extraction it until fixed
