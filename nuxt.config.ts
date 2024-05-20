@@ -22,11 +22,11 @@ export default defineNuxtConfig({
   generate: {
     routes: [
       // 正多边形
-      '/regular-polygon/single/:side',
+      // '/regular-polygon/single/:side',
       '/regular-polygon/showcase',
       '/regular-polygon/playground',
       // 圆形
-      '/circle/single/:vertex',
+      // '/circle/single/:vertex',
       '/circle/showcase',
       '/circle/playground',
     ],
