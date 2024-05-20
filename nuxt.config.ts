@@ -13,6 +13,12 @@ export default defineNuxtConfig({
     '@element-plus/nuxt',
   ],
 
+  vite: {
+    esbuild: {
+      drop: ['console', 'debugger'],
+    },
+  },
+
   experimental: {
     // when using generate, payload js assets included in sw precache manifest
     // but missing on offline, disabling extraction it until fixed

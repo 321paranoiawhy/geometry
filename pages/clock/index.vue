@@ -108,15 +108,10 @@ function clock() {
 }
 
 onMounted(() => {
-  // const ctx = canvasRef.value!.getContext('2d')!
-  // ctx.fillStyle = 'red'
-  // ctx.fillRect(0, 0, 150, 150)
-
   requestAnimationFrame(clock)
 })
 </script>
 
 <template>
   <canvas ref="canvasRef" width="150" height="150" />
-  <a href="https://stackblitz.com/github/antfu/vitesse-nuxt3"><img src="https://developer.stackblitz.com/img/open_in_stackblitz.svg" alt=""></a>
 </template>
