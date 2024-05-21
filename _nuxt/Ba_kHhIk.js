@@ -1,0 +1,1 @@
+import{_ as o}from"./BM6NC5Ti.js";import{f as r,k as s,o as c,c as a,a as n,t as _,b as i}from"./Ka5Y-oHc.js";import"./DGE65cC5.js";import"./CV8Xs3yA.js";import"./DlAUqK2U.js";const k=r({__name:"[vertex]",setup(m){const e=+s().params.vertex;return(u,l)=>{const t=o;return c(),a("div",null,[n("h2",null,"Circle with "+_(e)+" vertices"),i(t,{vertices:e})])}}});export{k as default};

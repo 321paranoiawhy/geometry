@@ -1,0 +1,1 @@
+import{_ as t}from"./DvDdUEBe.js";import{_ as r}from"./DlAUqK2U.js";import{c as n,X as s,b as c,o as _}from"./Ka5Y-oHc.js";import"./B2cIaA12.js";const a={},m={class:"px-10 py-20"};function p(o,f){const e=t;return _(),n("main",m,[s(o.$slots,"default"),c(e)])}const x=r(a,[["render",p]]);export{x as default};
