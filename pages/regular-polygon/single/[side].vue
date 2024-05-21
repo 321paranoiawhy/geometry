@@ -1,11 +1,28 @@
 <script setup lang="ts">
 import nzh from 'nzh'
+import type { RouteLocationNormalizedLoadedTyped } from 'unplugin-vue-router'
+import type { RouteNamedMap } from 'vue-router/auto/routes'
 
 const nzhCN = nzh.cn
+
+definePageMeta({
+  validate: async (route) => {
+    const side = (route as RouteLocationNormalizedLoadedTyped<RouteNamedMap, 'regular-polygon-single-side'>).params.side
+    // Check if the side is made up of digits
+    const isValidSide = typeof side === 'string' && /^\d+$/.test(side)
+    if (isValidSide) {
+      return true
+    }
+    else {
+      return {
+        statusMessage: 'route param [side] must be a digit',
+      }
+    }
+  },
+})
+
 const route = useRoute<'regular-polygon-single-side'>()
 const side = +route.params.side
-if (Number.isNaN(side))
-  ElMessage.error({ message: 'Invalid route param side!' })
 </script>
 
 <template>
